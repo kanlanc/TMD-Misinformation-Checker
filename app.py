@@ -1,16 +1,28 @@
 import streamlit as st
 import requests
 import geopandas as gpd
+import pandas as pd
 import matplotlib.pyplot as plt
 import anthropic
+from matplotlib.colors import ListedColormap
+
+
+memory_chat = {}
+
 
 # Function to send text to Claude API for summarization and translation
-def summarize_and_translate(text):
+def summarize_and_translate(text, memory_chat):
 
     # Replace with your actual API key  
-    api_key = "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"
+    api_key = "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"
 
     client = anthropic.Anthropic(api_key=api_key)
+
+
+    if text in memory_chat:
+        return memory_chat[text]
+
+    print(memory_chat)
 
     message = client.messages.create(
         model="claude-3-haiku-20240307",
@@ -21,13 +33,21 @@ def summarize_and_translate(text):
                     "content": [
                         {
                             "type": "text",
-                            "text": "Is this true?"
+                            "text": "Your gonna act as a fake news aggregator model. Without any extra unnecessary wording, Your just a mockup and randomly gonna decide if your gonna reply with the website or say this piece of text is true. I am gonna be sending you a piece of text and your meant to respond with "+ "Yes, this is true and can be found at the restoftheworld.com" + "website."
+                        },
+                        {
+                            "type": "text",
+                            "text": text
                         }
                     ],
                 }
             ],
     )
     print(message.content)
+
+    
+
+
     return message.content[0].text
 
 # Function to visualize India map with states highlighted based on threshold
@@ -48,8 +68,17 @@ def visualize_india_map(data):
     admin_boundaries["value"] = admin_boundaries["ST_NM"].map(data)
 
     # Plot the admin_boundaries with the color based on the "value" column
-    admin_boundaries.plot(column="value", cmap="RdYlGn", linewidth=0.8, edgecolor="0.8", ax=ax)
+    # admin_boundaries.plot(column="value", cmap="RdYlGn", linewidth=0.8, edgecolor="0.8", ax=ax)
+    bins = [0, 10,16, admin_boundaries["value"].max()]
+    labels = ["Low", "Medium", "High"]
+    admin_boundaries["value_cat"] = pd.cut(admin_boundaries["value"], bins=bins, labels=labels)
 
+    # Define a custom colormap with three colors
+    colors = ["green", "yellow", "red"]
+    cmap = ListedColormap(colors)
+
+    # Plot the admin_boundaries with the color based on the "value_cat" column
+    admin_boundaries.plot(column="value_cat", cmap=cmap, linewidth=0.8, edgecolor="0.8", ax=ax)
     # Iterate over each geometry and add its name as a label
     for idx, row in admin_boundaries.iterrows():
         centroid = row.geometry.centroid
@@ -68,10 +97,13 @@ def main():
     # Text input
     text = st.text_area("Enter the text to summarize and translate")
     
-    if st.button("Submit"):
-        if text:
+    
+    if st.button("Is this news true?"):
+        if text and text not in memory_chat:
             # Summarize and translate text using Claude API
-            summary = summarize_and_translate(text)
+            summary = summarize_and_translate(text,memory_chat)
+
+            memory_chat[text] = summary
             
             # Display the summary
             st.subheader("Summary")
@@ -120,6 +152,8 @@ def main():
   "West Bengal": 8
 }
     visualize_india_map(data)
+
+    memory = []
 
 if __name__ == "__main__":
     main()
